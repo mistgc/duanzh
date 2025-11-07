@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  duanzh:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - RUST_LOG=info
+      - LLM_API_KEY=${LLM_API_KEY:-dummy_key}
+      - LLM_API_URL=${LLM_API_URL:-http://ollama:11434/api/generate}
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    restart: unless-stopped
+
+  ollama-model:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    command: [
+      "sh", "-c", 
+      "sleep 10 && ollama pull llama2"
+    ]
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: "no"
+
+volumes:
+  ollama_data:

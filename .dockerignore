@@ -1,0 +1,11 @@
+target/
+.git/
+.gitignore
+README.md
+Dockerfile
+.dockerignore
+*.log
+*.env
+!Cargo.toml
+!Cargo.lock
+!src/
