@@ -1,0 +1,209 @@
+/* DUANZH - Text Chapterizer Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "Inter", sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+    color: #333;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+header {
+    text-align: center;
+    padding: 30px 0;
+    margin-bottom: 30px;
+}
+
+header h1 {
+    font-size: 3.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 10px;
+    letter-spacing: -0.5px;
+}
+
+header p {
+    font-size: 1.2rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 40px;
+    margin-bottom: 40px;
+}
+
+.upload-section {
+    flex: 1;
+    min-width: 300px;
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e2e8f0;
+}
+
+.upload-area {
+    text-align: center;
+    padding: 40px 20px;
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #f8fafc;
+}
+
+.upload-area:hover {
+    border-color: #93c5fd;
+    background: #eff6ff;
+}
+
+.upload-icon {
+    font-size: 4rem;
+    margin-bottom: 20px;
+}
+
+.upload-area h2 {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+    color: #1e293b;
+}
+
+.upload-area p {
+    color: #64748b;
+    margin-bottom: 20px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(79, 70, 229, 0.3);
+}
+
+.progress-section {
+    margin-top: 30px;
+    text-align: center;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 12px;
+    background: #e2e8f0;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 15px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
+    width: 0%;
+    transition: width 0.4s ease;
+    border-radius: 6px;
+}
+
+.result-section {
+    text-align: center;
+    padding: 20px;
+    background: #f0f9ff;
+    border-radius: 12px;
+    border: 1px solid #bae6fd;
+    margin-top: 20px;
+}
+
+.result-section h3 {
+    color: #0277bd;
+    margin-bottom: 10px;
+    font-size: 1.5rem;
+}
+
+.result-info {
+    margin: 15px 0;
+}
+
+#chapterCount {
+    display: inline-block;
+    background: #dbeafe;
+    color: #1d4ed8;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-weight: 500;
+}
+
+.info-section {
+    flex: 1;
+    min-width: 300px;
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e2e8f0;
+}
+
+.info-section h3 {
+    font-size: 1.3rem;
+    color: #1e293b;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.info-section ol, .info-section ul {
+    margin-left: 20px;
+    margin-bottom: 20px;
+}
+
+.info-section li {
+    margin-bottom: 10px;
+}
+
+footer {
+    text-align: center;
+    padding: 20px 0;
+    color: #64748b;
+    font-size: 0.9rem;
+    border-top: 1px solid #e2e8f0;
+    margin-top: 20px;
+}
+
+@media (max-width: 768px) {
+    main {
+        flex-direction: column;
+    }
+    
+    header h1 {
+        font-size: 2.5rem;
+    }
+    
+    .upload-section, .info-section {
+        padding: 20px;
+    }
+}
+

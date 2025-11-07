@@ -12,6 +12,7 @@ use axum::{
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
+use tower_http::services::ServeDir;
 use tracing_subscriber::{EnvFilter, fmt};
 
 #[derive(Clone)]
@@ -35,6 +36,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(index))
         .route("/upload", post(upload_file))
         .route("/health", get(health_check))
+        .route("/download/:id", get(download_file))
+        .nest_service("/static", ServeDir::new("static"))
+        .fallback_service(ServeDir::new("static"))
         .with_state(app_state)
         // Add CORS layer
         .layer(
@@ -44,51 +48,111 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .allow_headers(tower_http::cors::AllowHeaders::any()),
         );
 
-    // Run our application
+    // Print server location and available routes
     let listener = TcpListener::bind("0.0.0.0:3000").await?;
-    tracing::info!("Listening on {}", listener.local_addr()?);
+    let addr = listener.local_addr()?;
+    println!();
+    println!("🚀 Server running at: http://{}", addr);
+    println!();
+    println!("📋 Available Routes:");
+    println!("   GET  /               - Home page");
+    println!("   POST /upload         - Upload text file for chapterization");
+    println!("   GET  /health         - Health check endpoint");
+    println!("   GET  /download/:id   - Download generated EPUB file");
+    println!("   GET  /static/*        - Static files");
+    println!();
+    
     axum::serve(listener, app).await?;
 
     Ok(())
 }
 
 async fn index() -> Html<String> {
-    let html_content = r#"
+    Html(r#"
     <!DOCTYPE html>
     <html>
     <head>
-        <title>TXT Chapterizer Service</title>
+        <title>DUANZH - Text Chapterizer API</title>
         <meta charset="utf-8">
         <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
-            .info-box { background-color: #f0f8ff; padding: 20px; border-radius: 8px; margin: 20px 0; }
-            .endpoint { background-color: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; font-family: monospace; }
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+                line-height: 1.6;
+            }
+            h1 {
+                color: #333;
+                border-bottom: 2px solid #3498db;
+                padding-bottom: 10px;
+            }
+            .endpoint {
+                background-color: #f8f9fa;
+                border: 1px solid #e9ecef;
+                border-radius: 4px;
+                padding: 10px;
+                margin: 10px 0;
+            }
+            .method {
+                display: inline-block;
+                padding: 2px 6px;
+                background-color: #3498db;
+                color: white;
+                border-radius: 3px;
+                font-weight: bold;
+                margin-right: 10px;
+            }
+            .upload-form {
+                margin-top: 20px;
+                padding: 20px;
+                background-color: #f9f9f9;
+                border-radius: 5px;
+            }
         </style>
     </head>
     <body>
-        <h1>TXT Chapterizer Service</h1>
+        <h1>DUANZH - Text Chapterizer API</h1>
+        <p>Welcome to the Text Chapterizer API service. This service converts plain text files into structured EPUB books with chapters.</p>
         
-        <div class="info-box">
-            <h2>Service Information</h2>
-            <p>This service helps you process plain text files and split them into chapters.</p>
-            <p>It's designed to work with Chinese and other languages that use UTF-8 encoding.</p>
+        <h2>Available Endpoints</h2>
+        <div class="endpoint">
+            <span class="method">GET</span>
+            <strong>/</strong> - This home page
+        </div>
+        <div class="endpoint">
+            <span class="method">GET</span>
+            <strong>/health</strong> - Health check endpoint
+        </div>
+        <div class="endpoint">
+            <span class="method">POST</span>
+            <strong>/upload</strong> - Upload text file for chapterization
+        </div>
+        <div class="endpoint">
+            <span class="method">GET</span>
+            <strong>/download/:id</strong> - Download generated EPUB file
+        </div>
+        <div class="endpoint">
+            <span class="method">GET</span>
+            <strong>/static/*</strong> - Static files
         </div>
         
-        <h2>Available Endpoints:</h2>
-        <div class="endpoint">GET / - This information page</div>
-        <div class="endpoint">GET /health - Health check</div>
-        <div class="endpoint">POST /upload - Upload a text file to process</div>
+        <div class="upload-form">
+            <h2>Try It Out</h2>
+            <p>You can directly upload a text file using the form below:</p>
+            <form action="/upload" method="post" enctype="multipart/form-data">
+                <div>
+                    <label for="text_file">Choose a text file to chapterize:</label><br>
+                    <input type="file" id="text_file" name="text_file" accept=".txt" required><br><br>
+                    <input type="submit" value="Upload and Process">
+                </div>
+            </form>
+        </div>
         
-        <h2>How to Use:</h2>
-        <p>Make a POST request to /upload with a multipart form containing a 'text_file' field</p>
-        
-        <h2>Supported Languages:</h2>
-        <p>This service supports Chinese and other UTF-8 encoded text files.</p>
+        <p><a href="/static/index.html">Go to Static UI →</a></p>
     </body>
     </html>
-    "#.to_string();
-
-    Html(html_content)
+    "#.to_string())
 }
 
 async fn health_check() -> &'static str {
@@ -128,4 +192,30 @@ async fn upload_file(
     }
 
     Err(StatusCode::BAD_REQUEST)
+}
+
+use axum::extract::Path;
+
+async fn download_file(Path(id): Path<String>) -> Result<axum::response::Response, StatusCode> {
+    use std::fs;
+    use std::path::Path as StdPath;
+
+    // Construct the file path
+    let file_path = format!("./output/{}.epub", id);
+
+    // Check if the file exists
+    if !StdPath::new(&file_path).exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    // Read the file content
+    let file_content = fs::read(&file_path)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Create a response with the file content
+    Ok(axum::response::Response::builder()
+        .header("Content-Type", "application/epub+zip")
+        .header("Content-Disposition", format!("attachment; filename=\"{}.epub\"", id))
+        .body(axum::body::Body::from(file_content))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
 }

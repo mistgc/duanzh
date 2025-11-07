@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DUANZH - Text Chapterizer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>DUANZH</h1>
+            <p>智能文本分章工具</p>
+        </header>
+        
+        <main>
+            <div class="upload-section">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📄</div>
+                    <h2>上传文本文件</h2>
+                    <p>支持 .txt 文件，包含中文内容的文档</p>
+                    <input type="file" id="fileInput" accept=".txt" hidden>
+                    <button class="btn-primary" id="browseBtn">浏览文件</button>
+                </div>
+                
+                <div class="progress-section" id="progressSection" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p id="progressText">正在处理文件...</p>
+                </div>
+                
+                <div class="result-section" id="resultSection" style="display: none;">
+                    <h3>处理完成！</h3>
+                    <p id="resultText">您的文档已成功分章</p>
+                    <div class="result-info">
+                        <span id="chapterCount">0 章节</span>
+                    </div>
+                    <a id="downloadBtn" class="btn-primary" href="#" download>下载EPUB</a>
+                </div>
+            </div>
+            
+            <div class="info-section">
+                <h3>如何使用</h3>
+                <ol>
+                    <li>点击 "浏览文件" 按钮上传您的 .txt 文档</li>
+                    <li>系统将自动分析文本并智能分章</li>
+                    <li>下载生成的 EPUB 文件</li>
+                </ol>
+                
+                <h3>功能特点</h3>
+                <ul>
+                    <li>支持中文文本分章</li>
+                    <li>AI 智能识别章节边界</li>
+                    <li>一键生成 EPUB 电子书格式</li>
+                    <li>保持原文内容完整性</li>
+                </ul>
+            </div>
+        </main>
+        
+        <footer>
+            <p>DUANZH - 智能文本处理工具</p>
+        </footer>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
