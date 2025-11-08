@@ -48,17 +48,16 @@ fn identify_chapters_by_regex(text: &str) -> Vec<Chapter> {
         r"^\s*([^\r\n]{1,50})\s*第\s*(\d+)\s*章\s*$", // Title Chapter 1 (when title is before)
     ];
 
-    let mut chapters = Vec::new();
     let lines: Vec<&str> = text.lines().collect();
 
-    // Compile all regex patterns - handle errors by using fallback patterns
+    // Compile all regex patterns
     let regexes: Vec<Regex> = patterns
         .iter()
         .filter_map(|pattern| Regex::new(pattern).ok())
         .collect();
 
+    // If no patterns compiled successfully, return single chapter with all text
     if regexes.is_empty() {
-        // If no patterns compiled successfully, return single chapter with all text
         return vec![Chapter {
             title: "Complete Text".to_string(),
             content: text.to_string(),
@@ -67,115 +66,119 @@ fn identify_chapters_by_regex(text: &str) -> Vec<Chapter> {
         }];
     }
 
-    let mut current_chapter_start = 0;
-    let mut current_pos = 0;
-
+    // Find all lines that match chapter patterns, along with their position in the text
+    let mut chapter_positions = Vec::new();
+    let mut cumulative_pos = 0;  // Track position in the full text
+    
     for (idx, line) in lines.iter().enumerate() {
-        let line_pos = text[current_pos..].find(line).unwrap_or(0) + current_pos;
-        let mut is_chapter_start = false;
-        let mut chapter_title = String::new();
-
+        let line_start_pos = cumulative_pos;
+        let line_end_pos = cumulative_pos + line.len();
+        
+        // Check if this line matches a chapter pattern
         for regex in &regexes {
             if let Some(captures) = regex.captures(line.trim()) {
-                if captures.len() > 1 {
+                let chapter_title = if captures.len() > 1 {
                     // If there's a second capture group, it's the title
                     if let Some(title_match) = captures.get(2) {
-                        chapter_title = title_match.as_str().trim().to_string();
-                        // If title is empty, try to get the number and create a default title
-                        if chapter_title.is_empty() {
+                        let title = title_match.as_str().trim().to_string();
+                        if title.is_empty() {
                             if let Some(num_match) = captures.get(1) {
-                                chapter_title = format!("Chapter {}", num_match.as_str().trim());
+                                format!("Chapter {}", num_match.as_str().trim())
                             } else {
-                                chapter_title = line.trim().to_string();
+                                line.trim().to_string()
                             }
+                        } else {
+                            title
                         }
                     } else if let Some(num_match) = captures.get(1) {
                         // If only the number is captured, create a title
-                        chapter_title = format!("Chapter {}", num_match.as_str().trim());
+                        format!("Chapter {}", num_match.as_str().trim())
+                    } else {
+                        line.trim().to_string()
                     }
                 } else {
-                    chapter_title = line.trim().to_string();
-                }
-                is_chapter_start = true;
-                break;
+                    line.trim().to_string()
+                };
+                
+                chapter_positions.push((line_start_pos, line_end_pos, chapter_title));
+                break; // Found a pattern, don't check others
             }
         }
-
-        // Use chapter_title so the compiler doesn't complain about unused variable
-        if is_chapter_start && !chapter_title.is_empty() {
-            // The title is already extracted, continue with logic
+        
+        // Update cumulative position (add line length + 1 for newline, except for last line)
+        cumulative_pos = line_end_pos;
+        if idx < lines.len() - 1 {  // Not the last line, add newline
+            cumulative_pos += 1;
         }
-
-        if is_chapter_start && idx > 0 {
-            // Save the previous chapter
-            if current_chapter_start < idx {
-                let start_pos = if current_chapter_start > 0 {
-                    text.find(lines[current_chapter_start - 1]).unwrap_or(0)
-                        + lines[current_chapter_start - 1].len()
-                } else {
-                    0
-                };
-
-                let end_pos = if idx < lines.len() {
-                    text.find(lines[idx]).unwrap_or(0)
-                } else {
-                    text.len()
-                };
-                let content = text[start_pos..end_pos].trim().to_string();
-
-                if !content.is_empty() {
-                    chapters.push(Chapter {
-                        title: if chapters.is_empty() {
-                            "Prologue".to_string()
-                        } else {
-                            format!("Chapter {}", chapters.len())
-                        },
-                        content,
-                        start_pos,
-                        end_pos,
-                    });
-                }
-            }
-
-            // Start a new chapter
-            current_chapter_start = idx;
-        }
-
-        current_pos = line_pos + line.len();
     }
 
-    // Add the final chapter
-    if current_chapter_start < lines.len() {
-        let start_pos = if current_chapter_start > 0 {
-            text.find(lines[current_chapter_start - 1]).unwrap_or(0)
-                + lines[current_chapter_start - 1].len()
-        } else {
-            0
-        };
-        let content = text[start_pos..].trim().to_string();
+    // If no chapter markers found, return single chapter with all text
+    if chapter_positions.is_empty() {
+        return vec![Chapter {
+            title: "Complete Text".to_string(),
+            content: text.to_string(),
+            start_pos: 0,
+            end_pos: text.len(),
+        }];
+    }
 
-        if !content.is_empty() {
-            chapters.push(Chapter {
-                title: if current_chapter_start == 0 {
-                    // If we found Chinese chapter markers, try to provide a more appropriate title
-                    if text.contains("第")
-                        && (text.contains("章")
-                            || text.contains("节")
-                            || text.contains("回")
-                            || text.contains("话"))
-                    {
-                        "序章".to_string()
-                    } else {
-                        "Chapter 1".to_string()
-                    }
-                } else {
-                    format!("Chapter {}", chapters.len() + 1)
-                },
-                content,
-                start_pos,
-                end_pos: text.len(),
-            });
+    // Build chapters based on positions - each chapter marker defines a new chapter 
+    // with content that follows it (up to the next marker)
+    let mut chapters = Vec::new();
+    
+    for (i, (_, marker_end, marker_title)) in chapter_positions.iter().enumerate() {
+        // Update current_start to after the current marker for this chapter's content
+        let mut content_start = *marker_end;  // Start after the marker
+        if content_start < text.len() && (text.as_bytes()[content_start] == b'\n' || text.as_bytes()[content_start] == b'\r') {
+            // Skip the newline character(s) after the marker
+            if text.as_bytes()[content_start] == b'\r' && content_start + 1 < text.len() && text.as_bytes()[content_start + 1] == b'\n' {
+                content_start += 2; // Skip \r\n
+            } else {
+                content_start += 1; // Skip \n
+            }
         }
+        
+        // Calculate end position for this chapter's content (up to next marker or end of text)
+        let content_end = if i < chapter_positions.len() - 1 {
+            // Up to the next marker
+            chapter_positions[i + 1].0  // Start position of next marker
+        } else {
+            // Up to the end of text
+            text.len()
+        };
+        
+        // Extract the content for this chapter
+        if content_end > content_start {
+            let content = text[content_start..content_end].trim().to_string();
+            if !content.is_empty() {
+                chapters.push(Chapter {
+                    title: marker_title.clone(),
+                    content,
+                    start_pos: content_start,
+                    end_pos: content_end,
+                });
+            }
+        }
+    }
+
+    // If no chapters with content were created, create a single chapter with all text
+    if chapters.is_empty() {
+        return vec![Chapter {
+            title: "Complete Text".to_string(),
+            content: text.to_string(),
+            start_pos: 0,
+            end_pos: text.len(),
+        }];
+    }
+
+    // If we still have no chapters (maybe everything was in chapter headers), return single chapter
+    if chapters.is_empty() {
+        return vec![Chapter {
+            title: "Complete Text".to_string(),
+            content: text.to_string(),
+            start_pos: 0,
+            end_pos: text.len(),
+        }];
     }
 
     chapters
@@ -239,10 +242,8 @@ async fn validate_chapters_with_llm(
 }
 
 fn create_epub_from_chapters(chapters: &[Chapter]) -> Result<String> {
-    // For the purpose of this demo, we'll simulate the EPUB creation
-    // In a real implementation, you'd use the actual epub_builder crate
-    use std::fs::File;
-    use std::io::Write;
+    use epub_builder::{EpubBuilder, EpubContent, ZipLibrary};
+    use std::io::Cursor;
 
     // Generate a unique ID for this EPUB
     let epub_id = uuid::Uuid::new_v4().to_string();
@@ -253,19 +254,74 @@ fn create_epub_from_chapters(chapters: &[Chapter]) -> Result<String> {
     // Create directory if it doesn't exist
     std::fs::create_dir_all("./output")?;
 
-    // Create a mock EPUB file (just for demonstration)
-    let mut file = File::create(&filename)?;
+    // Create a cursor to hold the EPUB data in memory
+    let mut cursor = Cursor::new(Vec::new());
 
-    // Write a simple mock EPUB structure
-    writeln!(
-        file,
-        "Mock EPUB file containing {} chapters",
-        chapters.len()
-    )?;
-    for (i, chapter) in chapters.iter().enumerate() {
-        writeln!(file, "\nChapter {}: {}", i + 1, chapter.title)?;
-        writeln!(file, "Content length: {}", chapter.content.len())?;
+    // Create an EPUB builder - handle the error and convert to anyhow::Result
+    let zip_library = match ZipLibrary::new() {
+        Ok(z) => z,
+        Err(e) => return Err(anyhow::anyhow!("Failed to create ZIP library: {}", e)),
+    };
+
+    let mut builder = match EpubBuilder::new(zip_library) {
+        Ok(b) => b,
+        Err(e) => return Err(anyhow::anyhow!("Failed to create EPUB builder: {}", e)),
+    };
+
+    // Set metadata
+    if let Err(e) = builder.metadata("title", "Generated Book") {
+        return Err(anyhow::anyhow!("Failed to set title metadata: {}", e));
     }
+    if let Err(e) = builder.metadata("author", "Text Chapterizer") {
+        return Err(anyhow::anyhow!("Failed to set author metadata: {}", e));
+    }
+    // Note: Skipping identifier for now due to library compatibility issues
+    // The EPUB will still work without a custom identifier
+
+    // Add chapters to the EPUB
+    for (index, chapter) in chapters.iter().enumerate() {
+        // Prepare chapter content in HTML format
+        let html_content = format!(
+            "<h1>{}</h1>\n{}",
+            html_escape::encode_text(&chapter.title),
+            // Convert newlines to paragraph breaks for better formatting
+            chapter
+                .content
+                .split("\n\n") // Split by double newlines (paragraphs)
+                .map(|para| {
+                    let para_trimmed = para.trim();
+                    if !para_trimmed.is_empty() {
+                        format!("<p>{}</p>", html_escape::encode_text(para_trimmed))
+                    } else {
+                        String::new()
+                    }
+                })
+                .filter(|s| !s.is_empty()) // Remove empty paragraphs
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+
+        // Add the content to the EPUB
+        if let Err(e) = builder.add_content(
+            EpubContent::new(format!("chap_{}.xhtml", index + 1), html_content.as_bytes())
+                .title(&chapter.title)
+                .level(1),
+        ) {
+            return Err(anyhow::anyhow!(
+                "Failed to add content for chapter {}: {}",
+                index + 1,
+                e
+            ));
+        }
+    }
+
+    // Generate the EPUB into our cursor
+    if let Err(e) = builder.generate(&mut cursor) {
+        return Err(anyhow::anyhow!("Failed to generate EPUB: {}", e));
+    }
+
+    // Write the cursor data to the actual file
+    std::fs::write(&filename, cursor.into_inner())?;
 
     Ok(epub_id)
 }

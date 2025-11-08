@@ -28,7 +28,7 @@ impl LLMClient {
             chapter.content
         );
 
-        let response = self
+        let mut request_builder = self
             .client
             .post(&self.api_url)
             .header("Content-Type", "application/json")
@@ -39,9 +39,14 @@ impl LLMClient {
                 "options": {
                     "temperature": 0.1
                 }
-            }))
-            .send()
-            .await?;
+            }));
+
+        // Add authorization header if API key is provided and not dummy
+        if self.api_key != "dummy_key" {
+            request_builder = request_builder.header("Authorization", format!("Bearer {}", self.api_key));
+        }
+
+        let response = request_builder.send().await?;
 
         let response_text = response.text().await?;
 
@@ -68,7 +73,7 @@ impl LLMClient {
             chapter1.content, chapter2.content
         );
 
-        let response = self
+        let mut request_builder = self
             .client
             .post(&self.api_url)
             .header("Content-Type", "application/json")
@@ -79,9 +84,14 @@ impl LLMClient {
                 "options": {
                     "temperature": 0.1
                 }
-            }))
-            .send()
-            .await?;
+            }));
+
+        // Add authorization header if API key is provided and not dummy
+        if self.api_key != "dummy_key" {
+            request_builder = request_builder.header("Authorization", format!("Bearer {}", self.api_key));
+        }
+
+        let response = request_builder.send().await?;
 
         let response_text = response.text().await?;
 

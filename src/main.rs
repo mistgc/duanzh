@@ -9,10 +9,12 @@ use axum::{
     response::{Html, Json},
     routing::{get, post},
 };
+use http;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
+use tower_http::trace::TraceLayer;
 use tracing_subscriber::{EnvFilter, fmt};
 
 #[derive(Clone)]
@@ -40,6 +42,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest_service("/static", ServeDir::new("static"))
         .fallback_service(ServeDir::new("static"))
         .with_state(app_state)
+        // Add request logging layer
+        .layer(
+            TraceLayer::new_for_http()
+                .on_request(|request: &http::Request<axum::body::Body>, _layer: &tracing::Span| {
+                    println!("Request: {} {}", request.method(), request.uri());
+                })
+                .on_response(|response: &http::Response<axum::body::Body>, latency: std::time::Duration, _span: &tracing::Span| {
+                    println!("Response: {} in {}ms", response.status(), latency.as_millis());
+                })
+        )
         // Add CORS layer
         .layer(
             CorsLayer::new()
@@ -61,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   GET  /download/:id   - Download generated EPUB file");
     println!("   GET  /static/*        - Static files");
     println!();
-    
+
     axum::serve(listener, app).await?;
 
     Ok(())
@@ -164,7 +176,7 @@ async fn upload_file(
     mut multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     // Extract the uploaded text file
-    while let Some(field) = multipart.next_field().await.unwrap() {
+    while let Some(field) = multipart.next_field().await.map_err(|_| StatusCode::BAD_REQUEST)? {
         let name = field.name().unwrap_or("unknown");
         if name == "text_file" {
             let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
@@ -181,7 +193,10 @@ async fn upload_file(
             // Process the text content into chapters
             let result = services::chapterizer::process_text(&text_content, &state.llm_client)
                 .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                .map_err(|e| {
+                    eprintln!("Error processing text: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
 
             return Ok(Json(serde_json::json!({
                 "success": true,
@@ -209,13 +224,15 @@ async fn download_file(Path(id): Path<String>) -> Result<axum::response::Respons
     }
 
     // Read the file content
-    let file_content = fs::read(&file_path)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let file_content = fs::read(&file_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Create a response with the file content
     Ok(axum::response::Response::builder()
         .header("Content-Type", "application/epub+zip")
-        .header("Content-Disposition", format!("attachment; filename=\"{}.epub\"", id))
+        .header(
+            "Content-Disposition",
+            format!("attachment; filename=\"{}.epub\"", id),
+        )
         .body(axum::body::Body::from(file_content))
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
 }
