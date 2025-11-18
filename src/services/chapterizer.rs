@@ -22,7 +22,7 @@ pub async fn process_text(
     })
 }
 
-fn identify_chapters_by_regex(text: &str) -> Vec<Chapter> {
+pub fn identify_chapters_by_regex(text: &str) -> Vec<Chapter> {
     // Common chapter heading patterns including Chinese characters
     let patterns = vec![
         r"(?i)^\s*chapter\s+(\d+|\w+)\s*$", // Chapter 1, Chapter One, etc.
@@ -241,7 +241,7 @@ async fn validate_chapters_with_llm(
     chapters
 }
 
-fn create_epub_from_chapters(chapters: &[Chapter]) -> Result<String> {
+pub fn create_epub_from_chapters(chapters: &[Chapter]) -> Result<String> {
     use epub_builder::{EpubBuilder, EpubContent, ZipLibrary};
     use std::io::Cursor;
 
@@ -275,14 +275,13 @@ fn create_epub_from_chapters(chapters: &[Chapter]) -> Result<String> {
     if let Err(e) = builder.metadata("author", "Text Chapterizer") {
         return Err(anyhow::anyhow!("Failed to set author metadata: {}", e));
     }
-    // Note: Skipping identifier for now due to library compatibility issues
-    // The EPUB will still work without a custom identifier
 
-    // Add chapters to the EPUB
+    // Add chapters to the EPUB - each with proper titles and navigation
     for (index, chapter) in chapters.iter().enumerate() {
-        // Prepare chapter content in HTML format
-        let html_content = format!(
-            "<h1>{}</h1>\n{}",
+        // Prepare chapter content in proper XHTML format
+        let xhtml_content = format!(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE html>\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\n<head>\n  <title>{}</title>\n</head>\n<body>\n  <h1>{}</h1>\n  {}\n</body>\n</html>",
+            html_escape::encode_text(&chapter.title),
             html_escape::encode_text(&chapter.title),
             // Convert newlines to paragraph breaks for better formatting
             chapter
@@ -301,11 +300,11 @@ fn create_epub_from_chapters(chapters: &[Chapter]) -> Result<String> {
                 .join("\n")
         );
 
-        // Add the content to the EPUB
+        // Add the content to the EPUB with proper title and level
         if let Err(e) = builder.add_content(
-            EpubContent::new(format!("chap_{}.xhtml", index + 1), html_content.as_bytes())
+            EpubContent::new(format!("chap_{}.xhtml", index + 1), xhtml_content.as_bytes())
                 .title(&chapter.title)
-                .level(1),
+                .level(1), // Level 1 for main chapters - this helps with navigation
         ) {
             return Err(anyhow::anyhow!(
                 "Failed to add content for chapter {}: {}",
@@ -314,6 +313,10 @@ fn create_epub_from_chapters(chapters: &[Chapter]) -> Result<String> {
             ));
         }
     }
+
+    // Ensure proper navigation by explicitly creating a navigation structure
+    // Add an inline table of contents to help EPUB readers recognize chapters
+    builder.inline_toc();
 
     // Generate the EPUB into our cursor
     if let Err(e) = builder.generate(&mut cursor) {

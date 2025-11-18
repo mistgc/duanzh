@@ -1,5 +1,5 @@
-mod models;
-mod services;
+pub mod models;
+pub mod services;
 mod utils;
 
 use axum::{
